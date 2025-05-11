@@ -1,69 +1,91 @@
 import streamlit as st
+import sqlite3
 
-# Base Class
+# ----------------- DATABASE SETUP -----------------
+conn = sqlite3.connect("users.db")
+c = conn.cursor()
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    skill TEXT NOT NULL,
+    role TEXT NOT NULL
+)
+""")
+conn.commit()
+
+# ----------------- CLASSES -----------------
 class User:
     def __init__(self, name, skill):
-        self.__name = name
-        self.__skill = skill
+        self._name = name
+        self._skill = skill
 
     def get_name(self):
-        return self.__name
+        return self._name
 
     def get_skill(self):
-        return self.__skill
+        return self._skill
 
     def introduce(self):
-        return f"Hi, I am {self.__name} and skilled in {self.__skill}."
+        return f"Hi, I am {self._name} and skilled in {self._skill}."
 
 
-# Child Classes
 class Student(User):
     def introduce(self):
-        return f"I am student {self.get_name()}, looking to learn {self.get_skill()}."
+        return f"🎓 I am student {self.get_name()}, looking to learn {self.get_skill()}."
 
 
 class Mentor(User):
     def introduce(self):
-        return f"I am mentor {self.get_name()}, and I can teach {self.get_skill()}."
+        return f"🧑‍🏫 I am mentor {self.get_name()}, and I can teach {self.get_skill()}."
 
 
-# Learning Platform Class
-class LearningPlatform:
-    def __init__(self):
-        self.users = []
-
-    def register_user(self, user):
-        self.users.append(user)
-
-    def get_all_users(self):
-        return self.users
+# ----------------- DATABASE FUNCTIONS -----------------
+def register_user_to_db(name, skill, role):
+    c.execute("INSERT INTO users (name, skill, role) VALUES (?, ?, ?)", (name, skill, role))
+    conn.commit()
 
 
-# App Code
-platform = LearningPlatform()
+def get_all_users_from_db():
+    c.execute("SELECT name, skill, role FROM users")
+    return c.fetchall()
 
-st.title("🎓 Peer-to-Peer Learning Platform")
 
-st.sidebar.title("Register")
-role = st.sidebar.selectbox("Are you a Student or Mentor?", ["Student", "Mentor"])
-name = st.sidebar.text_input("Enter your name")
-skill = st.sidebar.text_input("Enter your skill")
+# ----------------- STREAMLIT UI -----------------
+st.set_page_config(page_title="Peer Learning Platform", layout="wide")
 
-if st.sidebar.button("Register"):
-    if name and skill:
-        if role == "Student":
-            user = Student(name, skill)
+st.title("🤝 Peer-to-Peer Learning Platform")
+
+with st.sidebar:
+    st.header("Register Here")
+    role = st.selectbox("Your Role", ["Student", "Mentor"])
+    name = st.text_input("Your Name")
+    skill = st.text_input("Your Skill")
+
+    if st.button("Register"):
+        if name and skill:
+            register_user_to_db(name, skill, role)
+            st.success("✅ Registered Successfully!")
         else:
-            user = Mentor(name, skill)
-        platform.register_user(user)
-        st.sidebar.success("Registered Successfully!")
-    else:
-        st.sidebar.error("Please fill all fields.")
+            st.error("❗ Please fill in all fields.")
 
 st.subheader("📋 Registered Users")
+users = get_all_users_from_db()
 
-if platform.get_all_users():
-    for user in platform.get_all_users():
-        st.write(user.introduce())
+if users:
+    student_col, mentor_col = st.columns(2)
+
+    with student_col:
+        st.markdown("### 🎓 Students")
+        for user in users:
+            if user[2] == "Student":
+                st.info(f"**{user[0]}** wants to learn **{user[1]}**.")
+
+    with mentor_col:
+        st.markdown("### 🧑‍🏫 Mentors")
+        for user in users:
+            if user[2] == "Mentor":
+                st.success(f"**{user[0]}** can teach **{user[1]}**.")
 else:
-    st.info("No users registered yet.")
+    st.warning("No users registered yet.")
